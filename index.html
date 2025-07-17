@@ -3,278 +3,796 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Parcel Editor</title>
-    
-    <!-- ArcGIS API for JavaScript CSS -->
+    <title>ArcGIS Maps SDK - Police Routes Editor</title>
     <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
-    
     <style>
         html, body, #viewDiv {
             padding: 0;
             margin: 0;
             height: 100%;
             width: 100%;
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
-        #editorDiv {
+
+        #featureForm {
             position: absolute;
-            top: 15px;
-            right: 15px;
-            width: 300px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            z-index: 10;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+            border: 1px solid #e0e0e0;
         }
-        
-        .esri-editor__title {
-            background-color: #0079c1;
-            color: white;
-            padding: 10px;
-            font-weight: bold;
-            border-radius: 8px 8px 0 0;
+
+        #featureForm.show {
+            opacity: 1;
+            transform: translateY(0);
         }
-        
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+
+        #featureForm h3 {
+            margin-top: 0;
+            color: #333;
             font-size: 18px;
+            border-bottom: 2px solid #0079c1;
+            padding-bottom: 10px;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-update {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .btn-update:hover {
+            background: linear-gradient(135deg, #218838, #1ba085);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-update:active {
+            transform: translateY(0);
+        }
+
+        .btn-delete {
+            background: linear-gradient(135deg, #dc3545, #e74c3c);
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: linear-gradient(135deg, #c82333, #dc2626);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+
+        .btn-delete:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        #sketchWidget {
+            position: absolute;
+            top: 20px;
+            right: 380px;
+            z-index: 1000;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            padding: 5px;
+        }
+
+        /* Custom selection tools */
+        #selectionTools {
+            position: absolute;
+            top: 80px;
+            right: 380px;
+            z-index: 1000;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            padding: 5px;
+            display: flex;
+            flex-direction: row;
+            gap: 5px;
+        }
+
+        /* Results window */
+        #resultsWindow {
+            position: absolute;
+            top: 135px;
+            right: 380px;
+            width: 280px;
+            max-height: 300px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+        }
+
+        #resultsWindow.show {
+            display: flex;
+        }
+
+        .results-header {
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            border-radius: 8px 8px 0 0;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .results-content {
+            padding: 10px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            padding: 8px 12px;
+            margin: 2px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            font-size: 12px;
+            border-left: 3px solid #0079c1;
+        }
+
+        .result-item:hover {
+            background: #e9ecef;
+        }
+
+        .result-item.selected {
+            background: #0079c1;
+            color: white;
+        }
+
+        .result-item-id {
+            font-weight: 600;
             color: #0079c1;
         }
-        
-        .esri-editor .esri-item-list__group__header {
-            background-color: #f5f5f5;
-            font-weight: bold;
-            color: #0079c1;
+
+        .result-item.selected .result-item-id {
+            color: white;
         }
-        
-        .esri-editor .esri-feature-form__field--readonly .esri-input {
-            background-color: #f0f0f0;
+
+        .result-item-details {
+            font-size: 11px;
             color: #666;
+            margin-top: 2px;
+        }
+
+        .result-item.selected .result-item-details {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .selection-btn {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            font-size: 16px;
+        }
+
+        .selection-btn:hover {
+            background: #f0f0f0;
+            border-color: #0079c1;
+        }
+
+        .selection-btn.active {
+            background: #0079c1;
+            color: white;
+            border-color: #0079c1;
+        }
+
+        /* Ensure sketch widget buttons are clickable */
+        #sketchWidget .esri-sketch__tool-button,
+        #sketchWidget .esri-sketch__button {
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        /* Style sketch widget buttons */
+        #sketchWidget .esri-sketch__tool-button:hover,
+        #sketchWidget .esri-sketch__button:hover {
+            background-color: #f0f0f0;
+        }
+
+        /* Make sure the widget container allows interaction */
+        #sketchWidget .esri-sketch {
+            pointer-events: auto;
+        }
+
+        .status-message {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .status-message.show {
+            opacity: 1;
+        }
+
+        .esri-feature-form {
+            background: transparent;
+        }
+
+        .esri-feature-form__field {
+            margin-bottom: 15px;
+        }
+
+        .esri-feature-form__label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .esri-feature-form__input {
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 8px 12px;
+            transition: border-color 0.3s ease;
+        }
+
+        .esri-feature-form__input:focus {
+            border-color: #0079c1;
+            outline: none;
         }
     </style>
 </head>
 <body>
-    <div id="viewDiv">
-        <div class="loading">Loading Map...</div>
-    </div>
-    <div id="editorDiv"></div>
-
-    <!-- ArcGIS API for JavaScript -->
-    <script src="https://js.arcgis.com/4.28/"></script>
+    <div id="viewDiv"></div>
     
+    <div id="sketchWidget"></div>
+    
+    <div id="selectionTools">
+        <button id="rectangleSelectBtn" class="selection-btn" title="Rectangle Selection">⬜</button>
+        <button id="lassoSelectBtn" class="selection-btn" title="Lasso Selection">🎯</button>
+        <button id="clearSelectionBtn" class="selection-btn" title="Clear Selection">✕</button>
+    </div>
+    
+    <div id="resultsWindow">
+        <div class="results-header">
+            <span id="resultsTitle">Selection Results</span>
+        </div>
+        <div class="results-content" id="resultsContent">
+            <!-- Results will be populated here -->
+        </div>
+    </div>
+    
+    <div id="featureForm">
+        <h3>Feature Editor</h3>
+        <div id="formContainer"></div>
+        <div class="form-buttons">
+            <button id="updateBtn" class="btn btn-update">Update</button>
+            <button id="deleteBtn" class="btn btn-delete">Delete</button>
+        </div>
+    </div>
+
+    <div id="statusMessage" class="status-message"></div>
+
+    <script src="https://js.arcgis.com/4.28/"></script>
     <script>
         require([
             "esri/Map",
             "esri/views/MapView",
             "esri/layers/FeatureLayer",
-            "esri/widgets/Editor",
-            "esri/core/reactiveUtils"
+            "esri/layers/GraphicsLayer",
+            "esri/widgets/Sketch",
+            "esri/widgets/FeatureForm",
+            "esri/Graphic",
+            "esri/geometry/Polyline",
+            "esri/geometry/Polygon",
+            "esri/geometry/geometryEngine",
+            "esri/symbols/SimpleLineSymbol",
+            "esri/symbols/SimpleMarkerSymbol"
         ], function(
-            Map, MapView, FeatureLayer, Editor, reactiveUtils
+            Map, MapView, FeatureLayer, GraphicsLayer, Sketch, FeatureForm, 
+            Graphic, Polyline, Polygon, geometryEngine, SimpleLineSymbol, SimpleMarkerSymbol
         ) {
-            // Remove loading message
-            document.querySelector('.loading').remove();
-            
-            // Create the map
-            const map = new Map({
-                basemap: "streets-navigation-vector"
+            // Create graphics layer for sketch
+            const graphicsLayer = new GraphicsLayer({
+                title: "Sketch Graphics"
             });
 
-            // Create the map view
+            // Create feature layer
+            const featureLayer = new FeatureLayer({
+                url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/ArcGIS/rest/services/Police_routes/FeatureServer/0",
+                outFields: ["*"],
+                title: "Police Routes"
+            });
+
+            // Create map
+            const map = new Map({
+                basemap: "streets-navigation-vector",
+                layers: [featureLayer, graphicsLayer]
+            });
+
+            // Create map view
             const view = new MapView({
                 container: "viewDiv",
                 map: map,
-                center: [174.7633, -36.8485], // Auckland, New Zealand
-                zoom: 12
+                center: [-98.5795, 39.8283], // Center of USA coordinates
+                zoom: 5
             });
 
-            // Create the parcel feature layer
-            const parcelLayer = new FeatureLayer({
-                url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/ArcGIS/rest/services/NZ_Parcels/FeatureServer/0",
-                outFields: ["*"],
-                popupEnabled: true,
-                title: "NZ Parcels"
+            // Variables for managing selected features
+            let selectedFeature = null;
+            let featureForm = null;
+            let highlight = null;
+            let selectedFeatures = [];
+            let multipleHighlights = [];
+            let selectionMode = null;
+            let selectionGraphicsLayer = new GraphicsLayer({
+                title: "Selection Graphics"
+            });
+            
+            // Add selection graphics layer to map
+            map.add(selectionGraphicsLayer);
+
+            // Selection tools functionality
+            let selectionSketch = new Sketch({
+                layer: selectionGraphicsLayer,
+                view: view,
+                availableCreateTools: ["rectangle", "polygon"],
+                defaultCreateOptions: {
+                    hasZ: false
+                },
+                visible: false
             });
 
-            // Add the layer to the map
-            map.add(parcelLayer);
+            // Selection tool event handlers
+            document.getElementById("rectangleSelectBtn").addEventListener("click", function() {
+                activateSelectionTool("rectangle");
+            });
 
-            // Wait for the layer to load and set up form template
-            parcelLayer.when(() => {
-                console.log("Layer loaded successfully");
-                console.log("Layer fields:", parcelLayer.fields);
+            document.getElementById("lassoSelectBtn").addEventListener("click", function() {
+                activateSelectionTool("polygon");
+            });
+
+            document.getElementById("clearSelectionBtn").addEventListener("click", function() {
+                clearSelection();
+            });
+
+            function activateSelectionTool(tool) {
+                // Clear previous selection
+                clearSelection();
                 
-                // Create a custom form template using the newer approach
-                const formTemplate = {
-                    title: "Parcel Information",
-                    description: "Edit parcel attributes",
-                    elements: [
-                        {
-                            type: "group",
-                            label: "Parcel Information",
-                            description: "Basic parcel details",
-                            elements: [
-                                {
-                                    type: "field",
-                                    fieldName: "parcel_id",
-                                    label: "Parcel ID",
-                                    description: "Auto-generated 4-digit parcel identifier",
-                                    editable: false
-                                },
-                                {
-                                    type: "field",
-                                    fieldName: "calc_area",
-                                    label: "Parcel Area (sq. meters)",
-                                    description: "Calculated area of the parcel",
-                                    editable: false
-                                }
-                            ]
-                        },
-                        {
-                            type: "group",
-                            label: "Owner Information",
-                            description: "Details about parcel ownership",
-                            elements: [
-                                {
-                                    type: "field",
-                                    fieldName: "owner_number",
-                                    label: "Number of Owners",
-                                    description: "Select the number of owners",
-                                    editable: true
-                                }
-                            ]
-                        },
-                        {
-                            type: "group",
-                            label: "Update Information",
-                            description: "Tracking information",
-                            elements: [
-                                {
-                                    type: "field",
-                                    fieldName: "last_update_date",
-                                    label: "Date of Last Update",
-                                    description: "Select the date of last update",
-                                    editable: true
-                                },
-                                {
-                                    type: "field",
-                                    fieldName: "parcel_type",
-                                    label: "Parcel Type",
-                                    description: "Select the type of parcel",
-                                    editable: true
-                                }
-                            ]
-                        }
-                    ]
-                };
-
-                // Apply the form template to the layer
-                parcelLayer.formTemplate = formTemplate;
+                // Set selection mode
+                selectionMode = tool;
                 
-                // Set up the editor with the layer
-                setupEditor();
-            });
+                // Update button states
+                document.querySelectorAll(".selection-btn").forEach(btn => btn.classList.remove("active"));
+                if (tool === "rectangle") {
+                    document.getElementById("rectangleSelectBtn").classList.add("active");
+                } else if (tool === "polygon") {
+                    document.getElementById("lassoSelectBtn").classList.add("active");
+                }
+                
+                // Show selection sketch widget
+                selectionSketch.visible = true;
+                selectionSketch.create(tool);
+                
+                showStatusMessage(`Draw a ${tool} to select features`);
+            }
 
-            // Function to set up the editor widget
-            function setupEditor() {
-                // Create editor widget
-                const editor = new Editor({
-                    view: view,
-                    container: "editorDiv",
-                    layerInfos: [{
-                        layer: parcelLayer,
-                        enabled: true,
-                        addEnabled: true,
-                        updateEnabled: true,
-                        deleteEnabled: true,
-                        attributeUpdatesEnabled: true,
-                        geometryUpdatesEnabled: true
-                    }]
+            function clearSelection() {
+                selectedFeatures = [];
+                multipleHighlights.forEach(h => h.remove());
+                multipleHighlights = [];
+                selectionGraphicsLayer.removeAll();
+                selectionSketch.visible = false;
+                selectionMode = null;
+                document.querySelectorAll(".selection-btn").forEach(btn => btn.classList.remove("active"));
+                hideFeatureForm();
+                hideResultsWindow();
+                showStatusMessage("Selection cleared");
+            }
+
+            // Show results window
+            function showResultsWindow() {
+                document.getElementById("resultsWindow").classList.add("show");
+            }
+
+            // Hide results window
+            function hideResultsWindow() {
+                document.getElementById("resultsWindow").classList.remove("show");
+                document.getElementById("resultsContent").innerHTML = "";
+            }
+
+            // Populate results window
+            function populateResultsWindow(features) {
+                const resultsContent = document.getElementById("resultsContent");
+                const resultsTitle = document.getElementById("resultsTitle");
+                
+                resultsTitle.textContent = `Selection Results (${features.length})`;
+                resultsContent.innerHTML = "";
+                
+                features.forEach((feature, index) => {
+                    const resultItem = document.createElement("div");
+                    resultItem.className = "result-item";
+                    resultItem.setAttribute("data-index", index);
+                    
+                    const objectId = feature.attributes.OBJECTID || "N/A";
+                    const attributes = Object.keys(feature.attributes)
+                        .filter(key => key !== "OBJECTID")
+                        .slice(0, 2) // Show first 2 attributes
+                        .map(key => `${key}: ${feature.attributes[key] || "N/A"}`)
+                        .join(", ");
+                    
+                    resultItem.innerHTML = `
+                        <div class="result-item-id">Feature ${objectId}</div>
+                        <div class="result-item-details">${attributes}</div>
+                    `;
+                    
+                    // Add click event to select feature
+                    resultItem.addEventListener("click", function() {
+                        selectFeatureFromResults(feature, index);
+                    });
+                    
+                    resultsContent.appendChild(resultItem);
                 });
+                
+                showResultsWindow();
+            }
 
-                // Watch for editor workflow events
-                reactiveUtils.watch(
-                    () => editor.viewModel.state,
-                    (state) => {
-                        console.log("Editor state:", state);
-                    }
-                );
+            // Select feature from results
+            function selectFeatureFromResults(feature, index) {
+                // Clear previous single selection highlight
+                if (highlight) {
+                    highlight.remove();
+                    highlight = null;
+                }
+                
+                // Update selected feature
+                selectedFeature = feature;
+                
+                // Highlight the selected feature
+                view.whenLayerView(featureLayer).then(function(layerView) {
+                    highlight = layerView.highlight(feature);
+                });
+                
+                // Update UI
+                document.querySelectorAll(".result-item").forEach(item => item.classList.remove("selected"));
+                document.querySelectorAll(".result-item")[index].classList.add("selected");
+                
+                // Show feature form
+                showFeatureForm(feature);
+                
+                showStatusMessage(`Selected feature ${feature.attributes.OBJECTID || index + 1}`);
+            }
 
-                // Handle feature creation with auto-generated values
-                editor.viewModel.watch("activeWorkflow", (workflow) => {
-                    if (workflow && workflow.type === "create-features-workflow") {
-                        // Auto-generate parcel ID when creating new features
-                        const feature = workflow.feature;
-                        if (feature) {
-                            // Generate random 4-digit parcel ID
-                            const parcelId = Math.floor(Math.random() * 9000) + 1000;
-                            feature.attributes.parcel_id = parcelId.toString();
+            // Handle selection sketch creation
+            selectionSketch.on("create", function(event) {
+                if (event.state === "complete") {
+                    const selectionGeometry = event.graphic.geometry;
+                    selectFeaturesByGeometry(selectionGeometry);
+                    
+                    // Hide selection sketch
+                    selectionSketch.visible = false;
+                    document.querySelectorAll(".selection-btn").forEach(btn => btn.classList.remove("active"));
+                    
+                    // Remove selection graphic after use
+                    setTimeout(() => {
+                        selectionGraphicsLayer.remove(event.graphic);
+                    }, 500);
+                }
+            });
+
+            // Select features by geometry
+            function selectFeaturesByGeometry(geometry) {
+                view.whenLayerView(featureLayer).then(function(layerView) {
+                    // Query features that intersect with selection geometry
+                    const query = featureLayer.createQuery();
+                    query.geometry = geometry;
+                    query.spatialRelationship = "intersects";
+                    
+                    featureLayer.queryFeatures(query).then(function(result) {
+                        if (result.features.length > 0) {
+                            selectedFeatures = result.features;
                             
-                            // Set current date as last update date
-                            feature.attributes.last_update_date = new Date().getTime();
+                            // Highlight selected features
+                            multipleHighlights.forEach(h => h.remove());
+                            multipleHighlights = [];
                             
-                            // Calculate area (simplified calculation)
-                            if (feature.geometry && feature.geometry.rings) {
-                                // This is a simplified area calculation
-                                // In a real application, you'd use proper geometric calculations
-                                feature.attributes.calc_area = Math.round(Math.random() * 10000 + 1000);
+                            selectedFeatures.forEach(feature => {
+                                const highlight = layerView.highlight(feature);
+                                multipleHighlights.push(highlight);
+                            });
+                            
+                            showStatusMessage(`Selected ${selectedFeatures.length} feature(s)`);
+                            
+                            // Always show results window for selections
+                            populateResultsWindow(selectedFeatures);
+                            
+                            // If only one feature selected, also show form
+                            if (selectedFeatures.length === 1) {
+                                selectedFeature = selectedFeatures[0];
+                                showFeatureForm(selectedFeature);
+                                // Mark first item as selected
+                                setTimeout(() => {
+                                    document.querySelector(".result-item").classList.add("selected");
+                                }, 100);
+                            } else {
+                                hideFeatureForm();
                             }
-                            
-                            console.log("Auto-generated parcel ID:", parcelId);
+                        } else {
+                            showStatusMessage("No features found in selection area");
+                            hideResultsWindow();
                         }
-                    }
-                });
-
-                // Add some styling when the view is ready
-                view.when(() => {
-                    // Add a title to the editor
-                    const editorTitle = document.createElement("div");
-                    editorTitle.className = "esri-editor__title";
-                    editorTitle.innerHTML = "Parcel Editor";
-                    
-                    const editorContainer = document.getElementById("editorDiv");
-                    editorContainer.insertBefore(editorTitle, editorContainer.firstChild);
-                    
-                    console.log("Map and editor are ready!");
+                    });
                 });
             }
 
-            // Handle layer loading errors
-            parcelLayer.when(
-                () => {
-                    console.log("Parcel layer loaded successfully");
+            // Create sketch widget
+            const sketch = new Sketch({
+                layer: graphicsLayer,
+                view: view,
+                container: "sketchWidget",
+                availableCreateTools: ["polyline"],
+                defaultCreateOptions: {
+                    hasZ: false
                 },
-                (error) => {
-                    console.error("Error loading parcel layer:", error);
-                    
-                    // Show error message to user
-                    const errorDiv = document.createElement("div");
-                    errorDiv.style.cssText = `
-                        position: absolute;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        background: #ffebee;
-                        color: #c62828;
-                        padding: 20px;
-                        border-radius: 8px;
-                        border: 1px solid #e57373;
-                        z-index: 1000;
-                        max-width: 400px;
-                        text-align: center;
-                    `;
-                    errorDiv.innerHTML = `
-                        <h3>Layer Loading Error</h3>
-                        <p>Unable to load the parcel layer. Please check your connection and try again.</p>
-                        <p><small>Error: ${error.message}</small></p>
-                    `;
-                    document.body.appendChild(errorDiv);
+                defaultUpdateOptions: {
+                    tool: "reshape",
+                    toggleToolOnClick: false
+                },
+                visibleElements: {
+                    createTools: {
+                        polyline: true
+                    },
+                    selectionTools: {
+                        "lasso-selection": false,
+                        "rectangle-selection": false
+                    },
+                    undoRedoMenu: true,
+                    settingsMenu: false
                 }
-            );
+            });
+
+            // Initialize feature form
+            function initializeFeatureForm() {
+                featureForm = new FeatureForm({
+                    container: "formContainer",
+                    layer: featureLayer,
+                    fieldConfig: [
+                        {
+                            name: "OBJECTID",
+                            editable: false
+                        }
+                    ]
+                });
+            }
+
+            // Show status message
+            function showStatusMessage(message, duration = 3000) {
+                const statusDiv = document.getElementById("statusMessage");
+                statusDiv.textContent = message;
+                statusDiv.classList.add("show");
+                
+                setTimeout(() => {
+                    statusDiv.classList.remove("show");
+                }, duration);
+            }
+
+            // Handle sketch create complete
+            sketch.on("create", function(event) {
+                if (event.state === "complete") {
+                    const graphic = event.graphic;
+                    
+                    // Add to feature layer
+                    const attributes = {
+                        // Add default attributes based on your feature layer schema
+                        // You may need to adjust these based on the actual field names
+                    };
+                    
+                    const newFeature = new Graphic({
+                        geometry: graphic.geometry,
+                        attributes: attributes
+                    });
+
+                    // Add to feature layer
+                    featureLayer.applyEdits({
+                        addFeatures: [newFeature]
+                    }).then(function(result) {
+                        if (result.addFeatureResults.length > 0) {
+                            showStatusMessage("Polyline added successfully!");
+                            // Remove from graphics layer since it's now in the feature layer
+                            graphicsLayer.remove(graphic);
+                        }
+                    }).catch(function(error) {
+                        console.error("Error adding feature:", error);
+                        showStatusMessage("Error adding polyline: " + error.message);
+                    });
+                }
+            });
+
+            // Handle map click
+            view.on("click", function(event) {
+                // Clear previous selection
+                if (highlight) {
+                    highlight.remove();
+                    highlight = null;
+                }
+
+                // Hit test to find clicked features
+                view.hitTest(event).then(function(response) {
+                    const results = response.results.filter(function(result) {
+                        return result.graphic && result.graphic.layer === featureLayer;
+                    });
+
+                    if (results.length > 0) {
+                        const graphic = results[0].graphic;
+                        selectFeature(graphic);
+                    } else {
+                        // Hide form if clicking on empty space
+                        hideFeatureForm();
+                    }
+                });
+            });
+
+            // Select and highlight feature
+            function selectFeature(graphic) {
+                selectedFeature = graphic;
+                
+                // Highlight the feature
+                view.whenLayerView(featureLayer).then(function(layerView) {
+                    if (highlight) {
+                        highlight.remove();
+                    }
+                    highlight = layerView.highlight(graphic);
+                });
+
+                // Show feature form
+                showFeatureForm(graphic);
+            }
+
+            // Show feature form
+            function showFeatureForm(graphic) {
+                if (featureForm) {
+                    featureForm.feature = graphic;
+                    document.getElementById("featureForm").classList.add("show");
+                    
+                    // Enable buttons
+                    document.getElementById("updateBtn").disabled = false;
+                    document.getElementById("deleteBtn").disabled = false;
+                }
+            }
+
+            // Hide feature form
+            function hideFeatureForm() {
+                selectedFeature = null;
+                document.getElementById("featureForm").classList.remove("show");
+                
+                // Disable buttons
+                document.getElementById("updateBtn").disabled = true;
+                document.getElementById("deleteBtn").disabled = true;
+                
+                // Clear single feature highlight
+                if (highlight) {
+                    highlight.remove();
+                    highlight = null;
+                }
+                
+                // Clear selection in results window
+                document.querySelectorAll(".result-item").forEach(item => item.classList.remove("selected"));
+                
+                // Don't clear multiple selection highlights here
+                // They should be cleared only when clearSelection() is called
+            }
+
+            // Update feature
+            function updateFeature() {
+                if (!selectedFeature || !featureForm) return;
+
+                // Get updated values from form
+                const updatedAttributes = featureForm.getValues();
+                
+                // Create updated feature with original geometry and OBJECTID
+                const updatedFeature = new Graphic({
+                    geometry: selectedFeature.geometry,
+                    attributes: {
+                        ...selectedFeature.attributes,
+                        ...updatedAttributes
+                    }
+                });
+                
+                // Apply updates to feature layer
+                featureLayer.applyEdits({
+                    updateFeatures: [updatedFeature]
+                }).then(function(result) {
+                    if (result.updateFeatureResults.length > 0 && result.updateFeatureResults[0].error) {
+                        showStatusMessage("Error updating feature: " + result.updateFeatureResults[0].error.message);
+                    } else {
+                        showStatusMessage("Feature updated successfully!");
+                        hideFeatureForm();
+                    }
+                }).catch(function(error) {
+                    console.error("Error updating feature:", error);
+                    showStatusMessage("Error updating feature: " + error.message);
+                });
+            }
+
+            // Delete feature
+            function deleteFeature() {
+                if (!selectedFeature) return;
+
+                if (confirm("Are you sure you want to delete this feature?")) {
+                    featureLayer.applyEdits({
+                        deleteFeatures: [selectedFeature]
+                    }).then(function(result) {
+                        if (result.deleteFeatureResults.length > 0 && result.deleteFeatureResults[0].error) {
+                            showStatusMessage("Error deleting feature: " + result.deleteFeatureResults[0].error.message);
+                        } else {
+                            showStatusMessage("Feature deleted successfully!");
+                            hideFeatureForm();
+                        }
+                    }).catch(function(error) {
+                        console.error("Error deleting feature:", error);
+                        showStatusMessage("Error deleting feature: " + error.message);
+                    });
+                }
+            }
+
+            // Event listeners for buttons
+            document.getElementById("updateBtn").addEventListener("click", updateFeature);
+            document.getElementById("deleteBtn").addEventListener("click", deleteFeature);
+
+            // Initialize when view is ready
+            view.when(function() {
+                initializeFeatureForm();
+                showStatusMessage("Map loaded successfully! Click on features to edit or use the sketch tool to draw new polylines.");
+                
+                // Initially disable buttons
+                document.getElementById("updateBtn").disabled = true;
+                document.getElementById("deleteBtn").disabled = true;
+            });
         });
     </script>
 </body>
