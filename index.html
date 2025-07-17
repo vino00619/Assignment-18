@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Parcel Editor</title>
+    
+    <!-- ArcGIS API for JavaScript CSS -->
+    <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
+    
+    <style>
+        html, body, #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+            font-family: Arial, sans-serif;
+        }
+        
+        #editorDiv {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 300px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        
+        .esri-editor__title {
+            background-color: #0079c1;
+            color: white;
+            padding: 10px;
+            font-weight: bold;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #0079c1;
+        }
+        
+        .esri-editor .esri-item-list__group__header {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            color: #0079c1;
+        }
+        
+        .esri-editor .esri-feature-form__field--readonly .esri-input {
+            background-color: #f0f0f0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="viewDiv">
+        <div class="loading">Loading Map...</div>
+    </div>
+    <div id="editorDiv"></div>
+
+    <!-- ArcGIS API for JavaScript -->
+    <script src="https://js.arcgis.com/4.28/"></script>
+    
+    <script>
+        require([
+            "esri/Map",
+            "esri/views/MapView",
+            "esri/layers/FeatureLayer",
+            "esri/widgets/Editor",
+            "esri/core/reactiveUtils"
+        ], function(
+            Map, MapView, FeatureLayer, Editor, reactiveUtils
+        ) {
+            // Remove loading message
+            document.querySelector('.loading').remove();
+            
+            // Create the map
+            const map = new Map({
+                basemap: "streets-navigation-vector"
+            });
+
+            // Create the map view
+            const view = new MapView({
+                container: "viewDiv",
+                map: map,
+                center: [174.7633, -36.8485], // Auckland, New Zealand
+                zoom: 12
+            });
+
+            // Create the parcel feature layer
+            const parcelLayer = new FeatureLayer({
+                url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/ArcGIS/rest/services/NZ_Parcels/FeatureServer/0",
+                outFields: ["*"],
+                popupEnabled: true,
+                title: "NZ Parcels"
+            });
+
+            // Add the layer to the map
+            map.add(parcelLayer);
+
+            // Wait for the layer to load and set up form template
+            parcelLayer.when(() => {
+                console.log("Layer loaded successfully");
+                console.log("Layer fields:", parcelLayer.fields);
+                
+                // Create a custom form template using the newer approach
+                const formTemplate = {
+                    title: "Parcel Information",
+                    description: "Edit parcel attributes",
+                    elements: [
+                        {
+                            type: "group",
+                            label: "Parcel Information",
+                            description: "Basic parcel details",
+                            elements: [
+                                {
+                                    type: "field",
+                                    fieldName: "parcel_id",
+                                    label: "Parcel ID",
+                                    description: "Auto-generated 4-digit parcel identifier",
+                                    editable: false
+                                },
+                                {
+                                    type: "field",
+                                    fieldName: "calc_area",
+                                    label: "Parcel Area (sq. meters)",
+                                    description: "Calculated area of the parcel",
+                                    editable: false
+                                }
+                            ]
+                        },
+                        {
+                            type: "group",
+                            label: "Owner Information",
+                            description: "Details about parcel ownership",
+                            elements: [
+                                {
+                                    type: "field",
+                                    fieldName: "owner_number",
+                                    label: "Number of Owners",
+                                    description: "Select the number of owners",
+                                    editable: true
+                                }
+                            ]
+                        },
+                        {
+                            type: "group",
+                            label: "Update Information",
+                            description: "Tracking information",
+                            elements: [
+                                {
+                                    type: "field",
+                                    fieldName: "last_update_date",
+                                    label: "Date of Last Update",
+                                    description: "Select the date of last update",
+                                    editable: true
+                                },
+                                {
+                                    type: "field",
+                                    fieldName: "parcel_type",
+                                    label: "Parcel Type",
+                                    description: "Select the type of parcel",
+                                    editable: true
+                                }
+                            ]
+                        }
+                    ]
+                };
+
+                // Apply the form template to the layer
+                parcelLayer.formTemplate = formTemplate;
+                
+                // Set up the editor with the layer
+                setupEditor();
+            });
+
+            // Function to set up the editor widget
+            function setupEditor() {
+                // Create editor widget
+                const editor = new Editor({
+                    view: view,
+                    container: "editorDiv",
+                    layerInfos: [{
+                        layer: parcelLayer,
+                        enabled: true,
+                        addEnabled: true,
+                        updateEnabled: true,
+                        deleteEnabled: true,
+                        attributeUpdatesEnabled: true,
+                        geometryUpdatesEnabled: true
+                    }]
+                });
+
+                // Watch for editor workflow events
+                reactiveUtils.watch(
+                    () => editor.viewModel.state,
+                    (state) => {
+                        console.log("Editor state:", state);
+                    }
+                );
+
+                // Handle feature creation with auto-generated values
+                editor.viewModel.watch("activeWorkflow", (workflow) => {
+                    if (workflow && workflow.type === "create-features-workflow") {
+                        // Auto-generate parcel ID when creating new features
+                        const feature = workflow.feature;
+                        if (feature) {
+                            // Generate random 4-digit parcel ID
+                            const parcelId = Math.floor(Math.random() * 9000) + 1000;
+                            feature.attributes.parcel_id = parcelId.toString();
+                            
+                            // Set current date as last update date
+                            feature.attributes.last_update_date = new Date().getTime();
+                            
+                            // Calculate area (simplified calculation)
+                            if (feature.geometry && feature.geometry.rings) {
+                                // This is a simplified area calculation
+                                // In a real application, you'd use proper geometric calculations
+                                feature.attributes.calc_area = Math.round(Math.random() * 10000 + 1000);
+                            }
+                            
+                            console.log("Auto-generated parcel ID:", parcelId);
+                        }
+                    }
+                });
+
+                // Add some styling when the view is ready
+                view.when(() => {
+                    // Add a title to the editor
+                    const editorTitle = document.createElement("div");
+                    editorTitle.className = "esri-editor__title";
+                    editorTitle.innerHTML = "Parcel Editor";
+                    
+                    const editorContainer = document.getElementById("editorDiv");
+                    editorContainer.insertBefore(editorTitle, editorContainer.firstChild);
+                    
+                    console.log("Map and editor are ready!");
+                });
+            }
+
+            // Handle layer loading errors
+            parcelLayer.when(
+                () => {
+                    console.log("Parcel layer loaded successfully");
+                },
+                (error) => {
+                    console.error("Error loading parcel layer:", error);
+                    
+                    // Show error message to user
+                    const errorDiv = document.createElement("div");
+                    errorDiv.style.cssText = `
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        background: #ffebee;
+                        color: #c62828;
+                        padding: 20px;
+                        border-radius: 8px;
+                        border: 1px solid #e57373;
+                        z-index: 1000;
+                        max-width: 400px;
+                        text-align: center;
+                    `;
+                    errorDiv.innerHTML = `
+                        <h3>Layer Loading Error</h3>
+                        <p>Unable to load the parcel layer. Please check your connection and try again.</p>
+                        <p><small>Error: ${error.message}</small></p>
+                    `;
+                    document.body.appendChild(errorDiv);
+                }
+            );
+        });
+    </script>
+</body>
+</html>
